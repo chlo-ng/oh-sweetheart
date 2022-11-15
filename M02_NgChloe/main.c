@@ -24,6 +24,7 @@
 #include "lose.h"
 #include "pauseScreen.h"
 #include "room1.h"
+#include "instructions.h"
 
 void initialize();
 
@@ -132,6 +133,10 @@ void start() {
 }
 
 void goToInstructions() {
+    REG_DISPCTL = MODE0 | BG0_ENABLE;
+    DMANow(3, instructionsPal, PALETTE, 256);
+    DMANow(3, instructionsTiles, &CHARBLOCK[0], instructionsTilesLen / 2);
+    DMANow(3, instructionsMap, &SCREENBLOCK[7], instructionsMapLen / 2);
     state = INSTRUCTIONS;
 }
 
