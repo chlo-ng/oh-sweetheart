@@ -62,6 +62,8 @@ extern int playGame;
 // game variables
 extern int exitted;
 extern int heroHealth;
+extern int hOff;
+extern int vOff;
 int lastState;
 
 int main() {
@@ -92,7 +94,7 @@ int main() {
                 break;
 
             case LEVELTWO:
-                levelOne();
+                levelTwo();
                 break;
             
             case PAUSE:
@@ -144,8 +146,10 @@ void start() {
     }
 
     if (playGame) {
-        initLevelTwo();
-        goToLevelTwo();
+        initLevelOne();
+        goToLevelOne();
+        // initLevelTwo();
+        // goToLevelTwo();
         playGame = 0;
     }
 }
@@ -181,6 +185,7 @@ void levelOne() {
     drawLevelOne();
 
     if (exitted) {
+        initLevelTwo();
         goToLevelTwo();
     }
 
@@ -195,17 +200,17 @@ void levelOne() {
 }
 
 void goToLevelTwo() {
-    REG_DISPCTL = MODE0 | BG0_ENABLE | SPRITE_ENABLE;
-    REG_BG0CNT = BG_CHARBLOCK(0) | BG_SCREENBLOCK(7) | BG_4BPP | BG_SIZE_WIDE | 1;
+    waitForVBlank();
+
+    REG_DISPCTL = MODE0 | BG1_ENABLE | SPRITE_ENABLE;
+    REG_BG1CNT = BG_CHARBLOCK(0) | BG_SCREENBLOCK(24) | BG_4BPP | BG_SIZE_WIDE;
 
     DMANow(3, room2Pal, PALETTE, 256);
     DMANow(3, room2Tiles, &CHARBLOCK[0], room2TilesLen / 2);
-    DMANow(3, room2Map, &SCREENBLOCK[7], room2MapLen / 2);
+    DMANow(3, room2Map, &SCREENBLOCK[24], room2MapLen / 2);
 
-    // REG_BG0VOFF = 0;
-    // REG_BG0HOFF = 0;
-
-    initLevelTwo();
+    REG_BG1VOFF = 0;
+    REG_BG1HOFF = 0;
 
     state = LEVELTWO;
 }

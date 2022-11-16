@@ -1,7 +1,9 @@
 #include "gba.h"
 #include "levelOne.h"
+#include "levelTwo.h"
 #include "spritesheet.h"
 #include "room1.h"
+#include "print.h"
 
 OBJ_ATTR shadowOAM[128];
 
@@ -21,13 +23,15 @@ HEALTH health[health_len];
 ANISPRITE heart;
 int used;
 
-int hOff = 0;
-int vOff = 0;
-
 int count;
 
 void initLevelOne() {
-    initializeSprites();
+    initializeSprites1();
+
+    MAPWIDTH = 240;
+    MAPHEIGHT = 160;
+    vOff = 0;
+    hOff = 0;
     count = 0;
 }
 
@@ -46,7 +50,7 @@ void drawLevelOne() {
     REG_BG0VOFF = vOff;
 }
 
-void initializeSprites() {
+void initializeSprites1() {
     DMANow(3, spritesheetPal, SPRITEPALETTE, 256);
     DMANow(3, spritesheetTiles, &CHARBLOCK[4], 8192*2);
     hideSprites(); 
@@ -199,37 +203,87 @@ void updateHealth() {
 void updatePlayer() {
 
     if (hero.aniState != SPRITEIDLE) {
-            hero.prevAniState = hero.aniState;
-            hero.aniState = SPRITEIDLE;
-        }
+        hero.prevAniState = hero.aniState;
+        hero.aniState = SPRITEIDLE;
+    }
 
-        // Change the animation frame every 15 frames of gameplay
-        if(hero.aniCounter % 12 == 0) {
-            if (hero.curFrame + 1 < hero.numFrames) {
-                hero.curFrame++;
-            } else {
-                hero.curFrame = 0;
+    // Change the animation frame every 15 frames of gameplay
+    if(hero.aniCounter % 12 == 0) {
+        if (hero.curFrame + 1 < hero.numFrames) {
+            hero.curFrame++;
+        } else {
+            hero.curFrame = 0;
+        }
+    }
+
+    if(BUTTON_HELD(BUTTON_UP)) {
+        // TODO 1.0: Replace the 1 (always true) with the correct conditional check
+        // TODO 2.3: Add two collisionCheck calls per direction to check if hero is allowed to move there
+        if (hero.worldRow >= 0) {
+            hero.worldRow -= hero.rdel;
+
+            // TODO 1.0: Only move the screen if the character is in the proper spot
+            // AND the screen isn't already at the edge
+            if (vOff - 2 >= 0 && (hero.worldRow - vOff) <= (SCREENHEIGHT/2)) {
+                // TODO 1.0: Update background offset (aka move the screen) if the above is true
+                vOff-=2;
+            }
+        }
+        hero.aniState = SPRITEBACK;
+
+    }
+
+    if(BUTTON_HELD(BUTTON_DOWN)) {
+        // TODO 1.0: Replace the 1 (always true) with the correct conditional check (use MAPHEIGHT)
+        // TODO 2.3: Add two collisionCheck calls per direction to check if hero is allowed to move there (use MAPHEIGHT)
+        if (hero.worldRow + hero.height <= MAPHEIGHT) {
+            hero.worldRow += hero.rdel;
+
+            // TODO 1.0: Only move the screen if the character is in the proper spot
+            // AND the screen isn't already at the edge
+            if (vOff + 2 < (MAPHEIGHT - SCREENHEIGHT) && (hero.worldRow - vOff) > (SCREENHEIGHT/2)) {
+                // TODO 1.0: Update background offset if the above is true
+                vOff+=2;
+            }
+        }
+        
+        hero.aniState = SPRITEFRONT;
+
+    }
+
+    if(BUTTON_HELD(BUTTON_LEFT)) {
+        // TODO 1.0: Replace the 1 (always true) with the correct conditional check
+        // TODO 2.3: Add two collisionCheck calls per direction to check if hero is allowed to move there
+        if (hero.worldCol >= 0) {
+            hero.worldCol -= hero.cdel;
+
+            // TODO 1.0: Only move the screen if the character is in the proper spot
+            // AND the screen isn't already at the edge
+            if (hOff - 2 >= 0 && (hero.worldCol - hOff) <= (SCREENWIDTH/2)) {
+                // TODO 1.0: Update background offset if the above is true
+                hOff-=2;
+            }
+        }
+        
+        hero.aniState = SPRITELEFT;
+
+    }
+
+    if(BUTTON_HELD(BUTTON_RIGHT)) {
+        // TODO 1.0: Replace the 1 (always true) with the correct conditional check (use MAPWIDTH)
+        // TODO 2.3: Add two collisionCheck calls per direction to check if hero is allowed to move there (use MAPWIDTH)
+        if (hero.worldCol + hero.width <= MAPWIDTH) {
+            hero.worldCol += hero.cdel;
+
+            // TODO 1.0: Only move the screen if the character is in the proper spot
+            // AND the screen isn't already at the edge
+            if (hOff + 2 < (MAPWIDTH - SCREENWIDTH) && (hero.worldCol - hOff) > (SCREENWIDTH/2)) {
+                // TODO 1.0: Update background offset if the above is true
+                hOff+=2;
             }
         }
 
-    if (BUTTON_HELD(BUTTON_LEFT)) {
-        hero.aniState = SPRITELEFT;
-        hero.worldCol -= hero.cdel;
-    }
-
-    if (BUTTON_HELD(BUTTON_RIGHT)) {
         hero.aniState = SPRITERIGHT;
-        hero.worldCol += hero.cdel;
-    }
-
-    if (BUTTON_HELD(BUTTON_UP)) {
-        hero.aniState = SPRITEBACK;
-        hero.worldRow -= hero.rdel;
-    }
-
-    if (BUTTON_HELD(BUTTON_DOWN)) {
-        hero.aniState = SPRITEFRONT;
-        hero.worldRow += hero.rdel;
     }
 
     if (hero.aniState == SPRITEIDLE) {
@@ -333,8 +387,8 @@ void updateEnemy() {
 
 void drawSprites() {
     // player
-    shadowOAM[0].attr0 = (hero.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-    shadowOAM[0].attr1 = (hero.worldCol & COLMASK) | ATTR1_MEDIUM;
+    shadowOAM[0].attr0 = ((hero.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+    shadowOAM[0].attr1 = ((hero.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
     shadowOAM[0].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(hero.curFrame * 4, hero.aniState * 4);
 
     // enemy
@@ -348,40 +402,40 @@ void drawSprites() {
 
     // door
     if (unlocked) {
-        shadowOAM[2].attr0 = (door.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[2].attr1 = (door.worldCol & COLMASK) | ATTR1_MEDIUM;
+        shadowOAM[2].attr0 = ((door.worldRow - vOff)& ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[2].attr1 = ((door.worldCol - hOff)  & COLMASK) | ATTR1_MEDIUM;
         shadowOAM[2].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(0, 22);
     } else {
-        shadowOAM[2].attr0 = (door.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[2].attr1 = (door.worldCol & COLMASK) | ATTR1_MEDIUM;
+        shadowOAM[2].attr0 = ((door.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[2].attr1 = ((door.worldCol - hOff)  & COLMASK) | ATTR1_MEDIUM;
         shadowOAM[2].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(0, 17);
     }
 
     // button to disable traps
     if (switches[0].pressed) {
-        shadowOAM[3].attr0 = (switches[0].sprite.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[3].attr1 = (switches[0].sprite.worldCol & COLMASK) | ATTR1_MEDIUM;
+        shadowOAM[3].attr0 = ((switches[0].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[3].attr1 = ((switches[0].sprite.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
         shadowOAM[3].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 17);
 
     } else {
-        shadowOAM[3].attr0 = (switches[0].sprite.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[3].attr1 = (switches[0].sprite.worldCol & COLMASK) | ATTR1_MEDIUM;
+        shadowOAM[3].attr0 = ((switches[0].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[3].attr1 = ((switches[0].sprite.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
         shadowOAM[3].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 21);
     }
 
     // button to unlock key
     if (switches[1].pressed) {
-        shadowOAM[4].attr0 = (switches[1].sprite.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[4].attr1 = (switches[1].sprite.worldCol & COLMASK) | ATTR1_MEDIUM;
+        shadowOAM[4].attr0 = ((switches[1].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[4].attr1 = ((switches[1].sprite.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
         shadowOAM[4].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 17);
 
-        shadowOAM[5].attr0 = (key.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[5].attr1 = (key.worldCol & COLMASK) | ATTR1_MEDIUM;
+        shadowOAM[5].attr0 = ((key.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[5].attr1 = ((key.worldRow - hOff) & COLMASK) | ATTR1_MEDIUM;
         shadowOAM[5].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(6, 27);
 
     } else {
-        shadowOAM[4].attr0 = (switches[1].sprite.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[4].attr1 = (switches[1].sprite.worldCol & COLMASK) | ATTR1_MEDIUM;
+        shadowOAM[4].attr0 = ((switches[1].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[4].attr1 = ((switches[1].sprite.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
         shadowOAM[4].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 21);
     }
 
@@ -392,8 +446,8 @@ void drawSprites() {
     // traps
     for (int i = 0; i < traps_len; i++) {
         if (!traps[i].disabled) {
-            shadowOAM[6 + i].attr0 = (traps[i].sprite.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-            shadowOAM[6 + i].attr1 = (traps[i].sprite.worldCol & COLMASK) | ATTR1_TINY;
+            shadowOAM[6 + i].attr0 = ((traps[i].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+            shadowOAM[6 + i].attr1 = ((traps[i].sprite.worldCol - hOff)& COLMASK) | ATTR1_TINY;
             shadowOAM[6 + i].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(6, 17);
         } else {
             shadowOAM[6 + i].attr0 |= ATTR0_HIDE;
@@ -401,15 +455,15 @@ void drawSprites() {
     }
 
     // healthBar
-    shadowOAM[12].attr0 = (healthBar.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_WIDE;
-    shadowOAM[12].attr1 = (healthBar.worldCol & COLMASK) | ATTR1_SMALL;
+    shadowOAM[12].attr0 = ((healthBar.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_WIDE;
+    shadowOAM[12].attr1 = ((healthBar.worldCol - hOff) & COLMASK) | ATTR1_SMALL;
     shadowOAM[12].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(15, 6);
 
     // health
     for (int i = 0; i < health_len; i++) {
         if (!health[i].erased) {
-            shadowOAM[13 + i].attr0 = (health[i].sprite.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-            shadowOAM[13 + i].attr1 = (health[i].sprite.worldCol & COLMASK) | ATTR1_TINY;
+            shadowOAM[13 + i].attr0 = ((health[i].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+            shadowOAM[13 + i].attr1 = ((health[i].sprite.worldCol - hOff) & COLMASK) | ATTR1_TINY;
             shadowOAM[13 + i].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(15, 7);
         } else {
             shadowOAM[13 + i].attr0 |= ATTR0_HIDE;

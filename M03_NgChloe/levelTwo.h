@@ -6,7 +6,6 @@ void initializeSprites2();
 void drawSprites();
 
 
-
 // int unlocked;
 // int pressed;
 // int exitted;

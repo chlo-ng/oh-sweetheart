@@ -2,6 +2,7 @@
 #include "levelOne.h"
 #include "levelTwo.h"
 #include "spritesheet.h"
+#include "print.h"
 
 OBJ_ATTR shadowOAM[128];
 
@@ -28,12 +29,14 @@ void initLevelTwo() {
     count = 0;
     
     MAPWIDTH = 480;
+    MAPHEIGHT = 160;
     vOff = 0;
     hOff = 0;
 }
 
 void updateLevelTwo() {
     updatePlayer();
+    updateHealth();
     count++;
 }
 
@@ -43,30 +46,30 @@ void drawLevelTwo() {
     DMANow(3, shadowOAM, OAM, 512);
 
     waitForVBlank();
-    REG_BG0HOFF = hOff;
-    REG_BG0VOFF = vOff;
+    REG_BG1HOFF = hOff;
+    REG_BG1VOFF = vOff;
 }
 
 void initializeSprites2() {
     DMANow(3, spritesheetPal, SPRITEPALETTE, 256);
     DMANow(3, spritesheetTiles, &CHARBLOCK[4], 8192*2);
+    hideSprites();
 
     // player
     hero.width = 32;
     hero.height = 32;
-    hero.worldCol = 5 + hOff;
-    hero.worldRow = SCREENHEIGHT / 2 - 48 + vOff;
-    hero.cdel = 1;
-    hero.rdel = 1;
+    hero.worldRow = SCREENHEIGHT / 2 - hero.width / 2 + vOff;
+    hero.worldCol = hOff;
+    hero.cdel = 2;
+    hero.rdel = 2;
 
     hero.aniCounter = 0;
     hero.curFrame = 0;
-    hero.aniState = SPRITEFRONT;
+    hero.aniState = SPRITERIGHT;
     hero.numFrames = 3;
     exitted = 0;
     damaged = 0;
     healed = 0;
-    heroHealth = health_len;
 
     // switches
     for (int i = 0; i < switches_len; i++) {
@@ -94,8 +97,7 @@ void initializeSprites2() {
     // door
     door.width = 32;
     door.height = 24;
-    door.worldCol = 391;
+    door.worldCol = 388;
     door.worldRow = 0;
     unlocked = 0;
-    
 }
