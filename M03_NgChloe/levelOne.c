@@ -1,9 +1,11 @@
 #include "gba.h"
 #include "levelOne.h"
-#include "levelTwo.h"
+#include "game.h"
 #include "spritesheet.h"
-#include "room1.h"
 #include "print.h"
+
+#include "sound.h"
+#include "switchpress.h"
 
 OBJ_ATTR shadowOAM[128];
 
@@ -13,8 +15,8 @@ int healed;
 ANISPRITE enemy;
 
 ANISPRITE door;
-TRAPS traps[traps_len];
-SWITCHES switches[switches_len];
+TRAPS traps[lvlOneTraps];
+SWITCHES switches[lvlOneSwitches];
 ANISPRITE key;
 ANISPRITE knife;
 
@@ -39,11 +41,13 @@ void updateLevelOne() {
     updateEnemy();
     updatePlayer();
     updateHealth();
+    updatePuzzle1();
     count++;
 }
 
 void drawLevelOne() {
     drawSprites();
+    mechanics1();
 
     DMANow(3, shadowOAM, OAM, 512);
     REG_BG0HOFF = hOff;
@@ -54,19 +58,18 @@ void initializeSprites1() {
     DMANow(3, spritesheetPal, SPRITEPALETTE, 256);
     DMANow(3, spritesheetTiles, &CHARBLOCK[4], 8192*2);
     hideSprites(); 
-
-    // player
-    hero.width = 32;
-    hero.height = 32;
+     // player
     hero.worldCol = SCREENWIDTH / 2 - 16;
     hero.worldRow = 128;
+
+    hero.width = 32;
+    hero.height = 32;
     hero.cdel = 1;
     hero.rdel = 1;
-
     hero.aniCounter = 0;
     hero.curFrame = 0;
     hero.aniState = SPRITEFRONT;
-    hero.numFrames = 3;
+    hero.numFrames = 4;
     exitted = 0;
     damaged = 0;
     healed = 0;
@@ -108,12 +111,26 @@ void initializeSprites1() {
     knife.worldCol = 60;
     knife.worldRow = 120;
     equippedKnife = 0;
+
+    // watermelon
+    watermelon.width = 16;
+    watermelon.height = 16;
+    watermelon.worldCol = 161;
+    watermelon.worldRow = 118;
+    smashed = 0;
+
+    // heart
+    heart.width = 8;
+    heart.height = 8;
+    heart.worldCol = 165;
+    heart.worldRow = 120;
+    used = 0;
 }
 
 void initializeSwitches() {
-    for (int i = 0; i < switches_len; i++) {
-        switches[i].sprite.width = 24;
-        switches[i].sprite.height = 24;
+    for (int i = 0; i < lvlOneSwitches; i++) {
+        switches[i].sprite.width = 16;
+        switches[i].sprite.height = 16;;
         
         if (i == 0) {
             switches[i].sprite.worldCol = 188;
@@ -128,7 +145,7 @@ void initializeSwitches() {
 }
 
 void initializeTraps() {
-    for (int i = 0; i < traps_len; i++) {
+    for (int i = 0; i < lvlOneTraps; i++) {
         traps[i].sprite.width = 8;
         traps[i].sprite.height = 8;
         traps[i].disabled = 0;
@@ -161,166 +178,34 @@ void initializeHealth() {
     for (int i = 0; i < health_len; i++) {
         health[i].erased = 0;
     }
-
-    heart.width = 8;
-    heart.height = 8;
-    heart.worldCol = 165;
-    heart.worldRow = 120;
-    used = 0;
-}
-
-void updateHealth() {
-    healthBar.worldCol = hero.worldCol;
-    healthBar.worldRow = hero.worldRow - 8;
-
-    for (int i = 0; i < health_len; i++) {
-        if (damaged) {
-            if (!health[i].erased) {
-                health[i].erased = 1;
-                heroHealth--;
-                damaged = 0;
-                break;
-            }
-        }
-
-        if (healed && !used) {
-            if (health[i].erased) {
-                // redraw the correct healthbar
-                if (!health[i + 1].erased) {
-                    health[i].erased = 0;
-                    used = 1;
-                    heroHealth++;
-                    break;
-                }
-            }
-        }
-
-        health[i].sprite.worldCol = healthBar.worldCol + (24 - i*8);
-        health[i].sprite.worldRow = healthBar.worldRow;
-    }
-}
-
-void updatePlayer() {
-
-    if (hero.aniState != SPRITEIDLE) {
-        hero.prevAniState = hero.aniState;
-        hero.aniState = SPRITEIDLE;
-    }
-
-    // Change the animation frame every 15 frames of gameplay
-    if(hero.aniCounter % 12 == 0) {
-        if (hero.curFrame + 1 < hero.numFrames) {
-            hero.curFrame++;
-        } else {
-            hero.curFrame = 0;
-        }
-    }
-
-    if(BUTTON_HELD(BUTTON_UP)) {
-        // TODO 1.0: Replace the 1 (always true) with the correct conditional check
-        // TODO 2.3: Add two collisionCheck calls per direction to check if hero is allowed to move there
-        if (hero.worldRow >= 0) {
-            hero.worldRow -= hero.rdel;
-
-            // TODO 1.0: Only move the screen if the character is in the proper spot
-            // AND the screen isn't already at the edge
-            if (vOff - 2 >= 0 && (hero.worldRow - vOff) <= (SCREENHEIGHT/2)) {
-                // TODO 1.0: Update background offset (aka move the screen) if the above is true
-                vOff-=2;
-            }
-        }
-        hero.aniState = SPRITEBACK;
-
-    }
-
-    if(BUTTON_HELD(BUTTON_DOWN)) {
-        // TODO 1.0: Replace the 1 (always true) with the correct conditional check (use MAPHEIGHT)
-        // TODO 2.3: Add two collisionCheck calls per direction to check if hero is allowed to move there (use MAPHEIGHT)
-        if (hero.worldRow + hero.height <= MAPHEIGHT) {
-            hero.worldRow += hero.rdel;
-
-            // TODO 1.0: Only move the screen if the character is in the proper spot
-            // AND the screen isn't already at the edge
-            if (vOff + 2 < (MAPHEIGHT - SCREENHEIGHT) && (hero.worldRow - vOff) > (SCREENHEIGHT/2)) {
-                // TODO 1.0: Update background offset if the above is true
-                vOff+=2;
-            }
-        }
-        
-        hero.aniState = SPRITEFRONT;
-
-    }
-
-    if(BUTTON_HELD(BUTTON_LEFT)) {
-        // TODO 1.0: Replace the 1 (always true) with the correct conditional check
-        // TODO 2.3: Add two collisionCheck calls per direction to check if hero is allowed to move there
-        if (hero.worldCol >= 0) {
-            hero.worldCol -= hero.cdel;
-
-            // TODO 1.0: Only move the screen if the character is in the proper spot
-            // AND the screen isn't already at the edge
-            if (hOff - 2 >= 0 && (hero.worldCol - hOff) <= (SCREENWIDTH/2)) {
-                // TODO 1.0: Update background offset if the above is true
-                hOff-=2;
-            }
-        }
-        
-        hero.aniState = SPRITELEFT;
-
-    }
-
-    if(BUTTON_HELD(BUTTON_RIGHT)) {
-        // TODO 1.0: Replace the 1 (always true) with the correct conditional check (use MAPWIDTH)
-        // TODO 2.3: Add two collisionCheck calls per direction to check if hero is allowed to move there (use MAPWIDTH)
-        if (hero.worldCol + hero.width <= MAPWIDTH) {
-            hero.worldCol += hero.cdel;
-
-            // TODO 1.0: Only move the screen if the character is in the proper spot
-            // AND the screen isn't already at the edge
-            if (hOff + 2 < (MAPWIDTH - SCREENWIDTH) && (hero.worldCol - hOff) > (SCREENWIDTH/2)) {
-                // TODO 1.0: Update background offset if the above is true
-                hOff+=2;
-            }
-        }
-
-        hero.aniState = SPRITERIGHT;
-    }
-
-    if (hero.aniState == SPRITEIDLE) {
-        hero.curFrame = 0;
-        hero.aniState = hero.prevAniState;
-    } else {
-        hero.aniCounter++;
-    }
     
+}
+
+void updatePuzzle1() {
     // update switch
-    for (int i = 0; i < switches_len; i++) {
+
+    for (int i = 0; i < lvlOneSwitches; i++) {
         if (collision(hero.worldCol - 4, hero.worldRow + 16, hero.width - 16, hero.height - 20, 
         switches[i].sprite.worldCol, switches[i].sprite.worldRow, switches[i].sprite.width - 12, switches[i].sprite.height - 12)) {
+            if (!switches[i].pressed) {
+                playSoundB(switchpress_data, switchpress_length, 0);
+            }   
             switches[i].pressed = 1;
+
         }
     }
 
     if (switches[0].pressed) {
-        for (int i = 0; i < traps_len; i++) {
+        for (int i = 0; i < lvlOneTraps; i++) {
             traps[i].disabled = 1;
         }
     }
 
     if (switches[1].pressed && collision(hero.worldCol, hero.worldRow, hero.width, hero.height, 
-    key.worldCol + 4, key.worldRow + 4, key.width / 2, key.height / 2)) {
+    key.worldCol + 4, key.worldRow, key.width / 2, key.height / 2)) {
         equippedKey = 1;
     }
-    // end update switch
-
-    if (equippedKey && collision(hero.worldCol, hero.worldRow, hero.width, hero.height, 
-    door.worldCol, door.worldRow, door.width, door.height)) {
-        unlocked = 1;
-
-        if (BUTTON_PRESSED(BUTTON_A)) {
-            exitted = 1;
-        }
-    }   
+    // end update switch 
 
     if (enemyHealth > 0 && collision(hero.worldCol + 8, hero.worldRow, hero.width, hero.height,
     enemy.worldCol + 8, enemy.worldRow, enemy.width, enemy.height)) {
@@ -334,7 +219,7 @@ void updatePlayer() {
     }
 
     // collide with traps
-    for (int i = 0; i < traps_len; i++) {
+    for (int i = 0; i < lvlOneTraps; i++) {
         if (!traps[i].disabled && collision(hero.worldCol + 8, hero.worldRow + 16, hero.width - 16, hero.height - 16,
         traps[i].sprite.worldCol, traps[i].sprite.worldRow, traps[i].sprite.width, traps[i].sprite.height)) {
             if (count % 40 == 0) {
@@ -342,109 +227,11 @@ void updatePlayer() {
             }
         }
     }
-
-    // collect heart and heal
-    if (heroHealth < 4 && collision(hero.worldCol + 8, hero.worldRow, hero.width - 8, hero.height,
-    heart.worldCol, heart.worldRow, heart.width, heart.height)) {
-        healed = 1;
-    }
-
-    // collect knife
-    if (collision(hero.worldCol + 8, hero.worldRow, hero.width - 8, hero.height,
-    knife.worldCol, knife.worldRow, knife.width, knife.height)) {
-        equippedKnife = 1;
-    }
-
 }
 
-void updateEnemy() {
-
-    // boundaries
-    if (enemy.worldCol + enemy.width >= 150) {
-        enemy.cdel = -1;
-    }
-
-    if (enemy.worldCol <= 90) {
-        enemy.cdel = 1;
-    }
-
-    // move towards hero
-    if ((enemy.worldCol == hero.worldCol + 8) && ((hero.worldRow - 25) <= enemy.worldRow)) {
-        enemy.cdel = 0;
-        if (enemy.worldRow <= hero.worldRow - 4) {
-            if (count % 2 == 0) {
-                enemy.worldRow += enemy.rdel;
-            } 
-        }
-    } else {
-        // constantly move
-        if (count % 2 == 0) {
-            enemy.worldCol += enemy.cdel;
-        }
-    }
-
-}
-
-void drawSprites() {
-    // player
-    shadowOAM[0].attr0 = ((hero.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-    shadowOAM[0].attr1 = ((hero.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
-    shadowOAM[0].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(hero.curFrame * 4, hero.aniState * 4);
-
-    // enemy
-    if (enemyHealth > 0) {
-        shadowOAM[1].attr0 = (enemy.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[1].attr1 = (enemy.worldCol & COLMASK) | ATTR1_SMALL;
-        shadowOAM[1].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(6, 20);
-    } else {
-        shadowOAM[1].attr0 |= ATTR0_HIDE;
-    }
-
-    // door
-    if (unlocked) {
-        shadowOAM[2].attr0 = ((door.worldRow - vOff)& ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[2].attr1 = ((door.worldCol - hOff)  & COLMASK) | ATTR1_MEDIUM;
-        shadowOAM[2].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(0, 22);
-    } else {
-        shadowOAM[2].attr0 = ((door.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[2].attr1 = ((door.worldCol - hOff)  & COLMASK) | ATTR1_MEDIUM;
-        shadowOAM[2].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(0, 17);
-    }
-
-    // button to disable traps
-    if (switches[0].pressed) {
-        shadowOAM[3].attr0 = ((switches[0].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[3].attr1 = ((switches[0].sprite.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
-        shadowOAM[3].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 17);
-
-    } else {
-        shadowOAM[3].attr0 = ((switches[0].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[3].attr1 = ((switches[0].sprite.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
-        shadowOAM[3].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 21);
-    }
-
-    // button to unlock key
-    if (switches[1].pressed) {
-        shadowOAM[4].attr0 = ((switches[1].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[4].attr1 = ((switches[1].sprite.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
-        shadowOAM[4].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 17);
-
-        shadowOAM[5].attr0 = ((key.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[5].attr1 = ((key.worldRow - hOff) & COLMASK) | ATTR1_MEDIUM;
-        shadowOAM[5].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(6, 27);
-
-    } else {
-        shadowOAM[4].attr0 = ((switches[1].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[4].attr1 = ((switches[1].sprite.worldCol - hOff) & COLMASK) | ATTR1_MEDIUM;
-        shadowOAM[4].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 21);
-    }
-
-    if (equippedKey) {
-        shadowOAM[5].attr0 |= ATTR0_HIDE;
-    }
-
+void mechanics1() {
     // traps
-    for (int i = 0; i < traps_len; i++) {
+    for (int i = 0; i < lvlOneTraps; i++) {
         if (!traps[i].disabled) {
             shadowOAM[6 + i].attr0 = ((traps[i].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
             shadowOAM[6 + i].attr1 = ((traps[i].sprite.worldCol - hOff)& COLMASK) | ATTR1_TINY;
@@ -454,37 +241,36 @@ void drawSprites() {
         }
     }
 
-    // healthBar
-    shadowOAM[12].attr0 = ((healthBar.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_WIDE;
-    shadowOAM[12].attr1 = ((healthBar.worldCol - hOff) & COLMASK) | ATTR1_SMALL;
-    shadowOAM[12].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(15, 6);
+    // button to disable traps
+    if (switches[0].pressed) {
+        shadowOAM[3].attr0 = ((switches[0].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[3].attr1 = ((switches[0].sprite.worldCol - hOff) & COLMASK) | ATTR1_SMALL;
+        shadowOAM[3].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 17);
 
-    // health
-    for (int i = 0; i < health_len; i++) {
-        if (!health[i].erased) {
-            shadowOAM[13 + i].attr0 = ((health[i].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-            shadowOAM[13 + i].attr1 = ((health[i].sprite.worldCol - hOff) & COLMASK) | ATTR1_TINY;
-            shadowOAM[13 + i].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(15, 7);
-        } else {
-            shadowOAM[13 + i].attr0 |= ATTR0_HIDE;
-        }
+    } else {
+        shadowOAM[3].attr0 = ((switches[0].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[3].attr1 = ((switches[0].sprite.worldCol - hOff) & COLMASK) | ATTR1_SMALL;
+        shadowOAM[3].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 19);
     }
 
-    // heart
-    if (!healed) {
-        shadowOAM[17].attr0 = (heart.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
-        shadowOAM[17].attr1 = (heart.worldCol & COLMASK) | ATTR1_TINY;
-        shadowOAM[17].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(13, 6);
+    // button to unlock key
+    if (switches[1].pressed) {
+        shadowOAM[4].attr0 = ((switches[1].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[4].attr1 = ((switches[1].sprite.worldCol - hOff) & COLMASK) | ATTR1_SMALL;
+        shadowOAM[4].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 17);
+        
+        // key appears
+        shadowOAM[5].attr0 = ((key.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[5].attr1 = ((key.worldRow - hOff) & COLMASK) | ATTR1_MEDIUM;
+        shadowOAM[5].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(6, 27);
+
     } else {
-        shadowOAM[17].attr0 |= ATTR0_HIDE;
+        shadowOAM[4].attr0 = ((switches[1].sprite.worldRow - vOff) & ROWMASK) | ATTR0_4BPP | ATTR0_SQUARE;
+        shadowOAM[4].attr1 = ((switches[1].sprite.worldCol - hOff) & COLMASK) | ATTR1_SMALL;
+        shadowOAM[4].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(10, 19);
     }
-    
-    // knife
-    if (!equippedKnife) {
-        shadowOAM[18].attr0 = (knife.worldRow & ROWMASK) | ATTR0_4BPP | ATTR0_WIDE;
-        shadowOAM[18].attr1 = (knife.worldCol & COLMASK) | ATTR1_MEDIUM;
-        shadowOAM[18].attr2 = ATTR2_PALROW(0) | ATTR2_TILEID(13, 3);
-    } else {
-        shadowOAM[18].attr0 |= ATTR0_HIDE;
+
+    if (equippedKey) {
+        shadowOAM[5].attr0 |= ATTR0_HIDE;
     }
 }

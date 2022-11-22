@@ -1,20 +1,31 @@
 // What is finished in the game so far:
-// - The first room/level of the game
+// - First level
+// - Second level
+// - Final boss level
+// - Defeating final boss gives you the win!
 
-// What needs to be added:
+// What needs to be added or changed:
 // - Sprite where player is holding the weapon that is picking up
-// - More varied levels. Maybe bigger.
-// - Sound!
-// - Collision Maps
+// - Inventory!
+// - A better background
+// - Implement collision maps
+// - This is sort of a bug, but some sprites appear in random places when I go from room 1 to room 2
+// - Currently, the final boss still doesn't do damage to the hero. Will need to add this feature.
+// - More complicated enemies and puzzles
+// - A third level, potentially a fourth if time permits.
+// - Sprite tile modification!
 
 // How to play the game:
 // Arrow buttons to move up, down, left and right.
-// Press switches to get a key and unlock the door!
-// One switch disables the traps around the second switch.
-// The second switch spawns the key.
-// Pick up the knife and press A to damage the moving enemy (purple square)
-// or else you will lose health gradually and lose.
-// The key unlocks the door! Press A by the door to go to the win screen.
+// Solve puzzles to get a key and unlock the door!
+
+// First level - one switch disables the traps (deals dmg) and the other gives you the key
+// The knife allows you to attack enemies and destroy watermelons to gain hearts
+
+// Second level - press the switch in a certain order to receive a key, if wrong order pressed, hero gets damaged
+
+// Final boss level - keep stabbing (press A) sweetheart until her HP is 0, a door will appear.
+// Leave through this door to win!
 
 #include "gba.h"
 #include "print.h"
@@ -28,6 +39,13 @@
 
 #include "levelOne.h"
 #include "levelTwo.h"
+#include "bossLevel.h"
+
+// #include "play.h"
+#include "sound.h"
+#include "byyourside.h"
+#include "whitespace.h"
+#include "victoryroyale.h"
 
 void initialize();
 
@@ -35,7 +53,7 @@ unsigned short buttons;
 unsigned short oldButtons;
 
 // game states
-enum States {START, PAUSE, LEVELONE, LEVELTWO, INSTRUCTIONS, WIN, LOSE};
+enum States {START, PAUSE, LEVELONE, LEVELTWO, BOSSLEVEL, INSTRUCTIONS, WIN, LOSE};
 int state;
 
 void start();
@@ -54,6 +72,9 @@ void levelOne();
 void goToLevelOne();
 void levelTwo();
 void goToLevelTwo();
+
+void bossLevel();
+void goToBossLevel();
 
 // start screen variables
 extern int howGame;
@@ -96,6 +117,10 @@ int main() {
             case LEVELTWO:
                 levelTwo();
                 break;
+
+            case BOSSLEVEL:
+                bossLevel();
+                break;
             
             case PAUSE:
                 pause();
@@ -124,12 +149,17 @@ void initialize() {
     REG_BG0HOFF = 0;
     REG_BG0VOFF = 0;
 
+    setupInterrupts();
+    setupSounds();
+    
     goToStart();
 }
 
 void goToStart() {
     REG_DISPCTL |= SPRITE_ENABLE;
     initStartScreen();
+
+    playSoundA(whitespace_data, whitespace_length, 1);
 
     state = START;
     lastState = 0;
@@ -146,10 +176,15 @@ void start() {
     }
 
     if (playGame) {
+        playSoundA(byyourside_data, byyourside_length, 1);
         initLevelOne();
         goToLevelOne();
+
         // initLevelTwo();
         // goToLevelTwo();
+
+        // initBossLevel();
+        // goToBossLevel();
         playGame = 0;
     }
 }
@@ -175,7 +210,6 @@ void goToLevelOne() {
     DMANow(3, room1Pal, PALETTE, 256);
     DMANow(3, room1Tiles, &CHARBLOCK[0], room1TilesLen / 2);
     DMANow(3, room1Map, &SCREENBLOCK[7], room1MapLen / 2);
-
     state = LEVELONE;
 }
 
@@ -203,7 +237,7 @@ void goToLevelTwo() {
     waitForVBlank();
 
     REG_DISPCTL = MODE0 | BG1_ENABLE | SPRITE_ENABLE;
-    REG_BG1CNT = BG_CHARBLOCK(0) | BG_SCREENBLOCK(24) | BG_4BPP | BG_SIZE_WIDE;
+    REG_BG1CNT = BG_CHARBLOCK(0) | BG_SCREENBLOCK(24) | BG_4BPP | BG_SIZE_LARGE;
 
     DMANow(3, room2Pal, PALETTE, 256);
     DMANow(3, room2Tiles, &CHARBLOCK[0], room2TilesLen / 2);
@@ -221,7 +255,8 @@ void levelTwo() {
     drawLevelTwo();
 
     if (exitted) {
-        goToWin();
+        initBossLevel();
+        goToBossLevel();
     }
 
     if (heroHealth <= 0) {
@@ -234,6 +269,27 @@ void levelTwo() {
     }
 }
 
+void goToBossLevel() {
+    REG_DISPCTL = MODE0 | BG0_ENABLE | SPRITE_ENABLE;
+    REG_BG0CNT = BG_CHARBLOCK(0) | BG_SCREENBLOCK(7) | BG_4BPP | BG_SIZE_SMALL;
+
+    DMANow(3, room1Pal, PALETTE, 256);
+    DMANow(3, room1Tiles, &CHARBLOCK[0], room1TilesLen / 2);
+    DMANow(3, room1Map, &SCREENBLOCK[7], room1MapLen / 2);
+
+    state = BOSSLEVEL;
+}
+
+void bossLevel() {
+    updateBossLevel();
+    waitForVBlank();
+    drawBossLevel();
+
+    if (exitted) {
+        goToWin();
+    }
+}
+
 void goToLose() {
     REG_DISPCTL = MODE0 | BG0_ENABLE;
     REG_BG0CNT = BG_CHARBLOCK(0) | BG_SCREENBLOCK(7) | BG_4BPP | BG_SIZE_SMALL;
@@ -242,6 +298,7 @@ void goToLose() {
     DMANow(3, loseTiles, &CHARBLOCK[0], loseTilesLen / 2);
     DMANow(3, loseMap, &SCREENBLOCK[7], loseMapLen / 2);
 
+    stopSounds();
     state = LOSE;
 }
 
@@ -258,6 +315,8 @@ void goToWin() {
     DMANow(3, winPal, PALETTE, 256);
     DMANow(3, winTiles, &CHARBLOCK[0], winTilesLen / 2);
     DMANow(3, winMap, &SCREENBLOCK[7], winMapLen); 
+
+    playSoundA(victoryroyale_data, victoryroyale_length, 1);
 
     state = WIN;
 }
@@ -276,6 +335,7 @@ void goToPause() {
     DMANow(3, pauseScreenTiles, &CHARBLOCK[0], pauseScreenTilesLen / 2);
     DMANow(3, pauseScreenMap, &SCREENBLOCK[7], pauseScreenMapLen / 2); 
 
+    pauseSounds();
     state = PAUSE;
 }
 
@@ -288,5 +348,11 @@ void pause() {
         if (lastState == LEVELTWO) {
             goToLevelTwo();
         }
+
+        if (lastState == BOSSLEVEL) {
+            goToBossLevel();
+        }
+
+        unpauseSounds();
     }
 }
