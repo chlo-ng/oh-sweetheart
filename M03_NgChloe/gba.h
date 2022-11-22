@@ -301,21 +301,24 @@ typedef struct {
 
 // ---- Interrupts ----
 
-// Interrupt Registers
-#define REG_IME *(unsigned short*)0x4000208 // Controller
-#define REG_IE *(unsigned short*)0x4000200 // Enabler
-#define REG_IF *(volatile unsigned short*)0x4000202 // Flag
+// Controller
+#define REG_IME *(unsigned short*)0x4000208
+// Enabler
+#define REG_IE *(unsigned short*)0x4000200
+// Flag
+#define REG_IF *(volatile unsigned short*)0x4000202
 
-// Interrupt Handler Function Pointer
+// Interrupt handler function pointer
 typedef void (*ihp)(void);
-
-// Interrupt Handler Register
+// Interrupt handler register
 #define REG_INTERRUPT *((ihp*)0x03007FFC)
-
-// Display Status Register
+// Display status register
 #define REG_DISPSTAT *(unsigned short*)0x4000004
 
-// Interrupt Settings
+// Interrupt constants for turning them on
+#define INT_VBLANK_ENABLE 1 << 3
+
+// Interrupt constants for checking which type of interrupt happened 
 #define INT_VBLANK 1 << 0   
 #define INT_TM0 1<<3    
 #define INT_TM1 1<<4    
