@@ -89,7 +89,7 @@ void initializeSprites1() {
 
     // door
     door.width = 32;
-    door.height = 24;
+    door.height = 32;
     door.worldCol = SCREENWIDTH / 2 - 16;
     door.worldRow = 0;
     unlocked = 0;
